@@ -1,0 +1,52 @@
+name: Download YouTube Subtitle
+
+on:
+  workflow_dispatch:
+
+jobs:
+  download-subtitles:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        job_index: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]  # 20 parallel jobs
+
+    permissions:
+      contents: write  # Allow pushing to the repository
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # Debugging: Print the contents of jobs.json
+      - name: Print jobs.json content
+        run: cat jobs.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install yt-dlp
+        run: pip install yt-dlp
+
+      - name: Write YOUTUBE_COOKIES to cookies.txt
+        run: echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
+
+      - name: Run download script
+        run: python download_sub.py ${{ matrix.job_index }}
+
+      - name: Zip subtitles
+        run: |
+          mkdir -p output
+          mv *.vtt output/ || true
+          cd output
+          zip subtitles${{ matrix.job_index }}.zip *.vtt || echo "No subtitles to zip"
+          cd ..
+
+      - name: Commit and push
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add output/subtitles${{ matrix.job_index }}.zip
+          git commit -m "Add subtitles${{ matrix.job_index }}.zip [auto]" || echo "Nothing to commit"
+          git push
